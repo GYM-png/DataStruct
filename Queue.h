@@ -33,25 +33,28 @@ typedef struct{
 }FDQueue;
 
 
-typedef Queue* Queue_Handle;
-typedef FDQueue* FDQueue_Handle;
+typedef Queue* QueueHandle_t;
+typedef FDQueue* FDQueueHandle_t;
 
 
-void Queue_Init(Queue *queue, uint8_t *buffer, uint16_t message_size, uint16_t queue_size);
-Queue_Handle Queue_Create(uint16_t message_size, uint16_t queue_size);
-static bool Queue_isEmpty(Queue *queue);
-static bool Queue_isFull(Queue *queue);
-uint16_t Queue_GetFreeSpace(Queue *queue);
-bool Queue_Send(Queue *queue,const uint8_t *message);
-void Queue_SendForce(Queue *queue,const uint8_t *message);
-bool Queue_Receive(Queue *queue, uint8_t *message);
+void queueInit(QueueHandle_t queue, uint8_t *buffer, uint16_t message_size, uint16_t queue_size);
+QueueHandle_t queueCreate(uint16_t message_size, uint16_t queue_size);
+static bool queueIsEmpty(QueueHandle_t queue);
+static bool queueIsFull(QueueHandle_t queue);
+uint16_t queueGetFreeSpace(QueueHandle_t queue);
+bool queueSend(QueueHandle_t queue, const uint8_t *message);
+void queueSendForce(QueueHandle_t queue,const uint8_t *message);
+bool queueReceive(QueueHandle_t queue, uint8_t *message);
 
-bool FDQueue_Init(FDQueue *queue, uint8_t *buffer, uint16_t buffer_size, uint8_t queue_size);
-FDQueue_Handle FDQueue_Create(uint16_t buffer_size, uint8_t queue_size);
-bool FDQueue_isEmpty(FDQueue *queue);
-bool FDQueue_isFull(FDQueue *queue);
-bool FDQueue_Send(FDQueue *queue,const uint8_t *message, uint16_t message_size);
-bool FDQueue_SendBegin(FDQueue *queue,const uint8_t *message, uint16_t message_size);
-bool FDQueue_SendEnd(FDQueue *queue,const uint8_t *message, uint16_t message_size);
-uint16_t FDQueue_Receive(FDQueue *queue, uint8_t *message, uint16_t message_size_max);
+bool fdQueueInit(FDQueueHandle_t queue, uint8_t *buffer, uint16_t buffer_size, uint8_t queue_size);
+FDQueueHandle_t fdQueueCreate(uint16_t buffer_size, uint8_t queue_size);
+uint16_t fdQueueGetFreeSpace(FDQueueHandle_t queue);
+uint16_t fdQueueMessageWatting(FDQueueHandle_t queue);
+bool fdQueueIsEmpty(FDQueueHandle_t queue);
+bool fdQueueIsFull(FDQueueHandle_t queue);
+bool fdQueueSend(FDQueueHandle_t queue, const uint8_t *message, uint16_t message_size);
+bool fdQueueSendForce(FDQueueHandle_t queue, const uint8_t *message, uint16_t message_size);
+bool fdQueueSendBegin(FDQueueHandle_t queue, const uint8_t *message, uint16_t message_size);
+bool fdQueueSendEnd(FDQueueHandle_t queue, const uint8_t *message, uint16_t message_size);
+uint16_t fdQueueReceive(FDQueueHandle_t queue, uint8_t *message, uint16_t message_size_max);
 #endif //DATASTRUCTS_QUEUE_H

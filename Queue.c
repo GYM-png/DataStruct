@@ -3,6 +3,7 @@
 //
 
 #include "Queue.h"
+#include "stdio.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,9 +13,11 @@
 #define FDQUEUE_UPDATE_RECORD_READ_INDEX(q)  do {q->size_record[queue->record_read_index] = 0; q->record_read_index = (q->record_read_index + 1) % q->queue_size; if (!q->record_read_index) q->record_read_mirror ^= 1;} while(0)
 #define FDQUEUE_UPDATE_RECORD_WRITE_INDEX(q, size) do {q->size_record[queue->record_write_index] = size; q->record_write_index = (q->record_write_index + 1) % q->queue_size; if (!q->record_write_index) q->record_write_mirror ^= 1;} while(0)
 
-#define FDQUEUE_UPDATE_RECORD_WRITE_INDEX_BEGIN(q, size) do {q->size_record[queue->record_write_index] = size; } while(0)
+#define FDQUEUE_UPDATE_RECORD_WRITE_INDEX_BEGIN(q, size) do {q->size_record[queue->record_write_index] += size; } while(0)
 #define FDQUEUE_UPDATE_RECORD_WRITE_INDEX_END(q, size) do {q->size_record[queue->record_write_index] += size; q->record_write_index = (q->record_write_index + 1) % q->queue_size; if (!q->record_write_index) q->record_write_mirror ^= 1;} while(0)
 
+#define QUEUE_ASSERT(x)  do{ if(!(x)){printf("assert faild %s:%d", __FILE_NAME__, __LINE__);}}while(0)
+#define QUEUE_ASSERT_RETURN(x, ret)  do{ if(!(x)){printf("assert faild %s:%d", __FILE_NAME__, __LINE__); return ret;} }while(0)
 
 /**
  * @brief 初始化队列
@@ -23,8 +26,13 @@
  * @param message_size 消息大小
  * @param queue_size 队列大小
  */
-void Queue_Init(Queue *queue, uint8_t *buffer, uint16_t message_size, uint16_t queue_size)
+void queueInit(Queue *queue, uint8_t *buffer, uint16_t message_size, uint16_t queue_size)
 {
+    QUEUE_ASSERT(queue != NULL);
+    QUEUE_ASSERT(buffer != NULL);
+    QUEUE_ASSERT(message_size != 0);
+    QUEUE_ASSERT(queue_size != 0);
+
     queue->buffer = buffer;
     queue->message_size = message_size;
     queue->queue_size = queue_size;
@@ -40,8 +48,10 @@ void Queue_Init(Queue *queue, uint8_t *buffer, uint16_t message_size, uint16_t q
  * @param queue_size 队列的大小
  * @return 队列指针
  */
-Queue* Queue_Create(uint16_t message_size, uint16_t queue_size)
+Queue* queueCreate(uint16_t message_size, uint16_t queue_size)
 {
+    QUEUE_ASSERT_RETURN(message_size != 0, NULL);
+    QUEUE_ASSERT_RETURN(queue_size != 0, NULL);
     Queue *queue = (Queue *)malloc(sizeof (Queue));
     if (queue == NULL)
     {
@@ -69,9 +79,9 @@ Queue* Queue_Create(uint16_t message_size, uint16_t queue_size)
  * @param queue 队列指针
  * @return true:队列为空 false:队列不为空
  */
-static bool Queue_isEmpty(Queue *queue)
+static bool queueIsEmpty(Queue *queue)
 {
-
+    QUEUE_ASSERT_RETURN(queue != NULL, false);
     return (queue->write_index == queue->read_index ) && (queue->write_mirror == queue->read_mirror);
 }
 
@@ -80,8 +90,9 @@ static bool Queue_isEmpty(Queue *queue)
  * @param queue 队列指针
  * @return true:队列已满 false:队列未满
  */
-static bool Queue_isFull(Queue *queue)
+static bool queueIsFull(Queue *queue)
 {
+    QUEUE_ASSERT_RETURN(queue != NULL, true);
     return (queue->write_index == queue->read_index) && (queue->write_mirror != queue->read_mirror);
 }
 
@@ -90,14 +101,15 @@ static bool Queue_isFull(Queue *queue)
  * @param queue 队列指针
  * @return 剩余空间
  */
-uint16_t Queue_GetFreeSpace(Queue *queue)
+uint16_t queueGetFreeSpace(Queue *queue)
 {
+    QUEUE_ASSERT_RETURN(queue != NULL, 0);
     uint16_t free_space = 0;
-    if (Queue_isEmpty(queue))
+    if (queueIsEmpty(queue))
     {
         free_space = queue->queue_size;
     }
-    else if (Queue_isFull(queue))
+    else if (queueIsFull(queue))
     {
         free_space = 0;
     }
@@ -121,9 +133,11 @@ uint16_t Queue_GetFreeSpace(Queue *queue)
  * @param message 消息指针
  * @return true:发送成功 false:发送失败
  */
-bool Queue_Send(Queue *queue,const uint8_t *message)
+bool queueSend(Queue *queue, const uint8_t *message)
 {
-    if (Queue_isFull(queue))
+    QUEUE_ASSERT_RETURN(queue != NULL, false);
+    QUEUE_ASSERT_RETURN(message != NULL, false);
+    if (queueIsFull(queue))
     {
         return false;
     }
@@ -137,9 +151,11 @@ bool Queue_Send(Queue *queue,const uint8_t *message)
  * @param queue 队列指针
  * @param message 待发送的消息指针
  */
-void Queue_SendForce(Queue *queue,const uint8_t *message)
+void queueSendForce(Queue *queue, const uint8_t *message)
 {
-    if (Queue_isFull(queue))
+    QUEUE_ASSERT(queue != NULL);
+    QUEUE_ASSERT(queue != NULL);
+    if (queueIsFull(queue))
     {
         QUEUE_UPDATE_READ_INDEX(queue);
     }
@@ -153,9 +169,11 @@ void Queue_SendForce(Queue *queue,const uint8_t *message)
  * @param message 接收到的消息指针
  * @return true:接收成功 false:接收失败
  */
-bool Queue_Receive(Queue *queue, uint8_t *message)
+bool queueReceive(Queue *queue, uint8_t *message)
 {
-    if (Queue_isEmpty(queue))
+    QUEUE_ASSERT_RETURN(queue != NULL, false);
+    QUEUE_ASSERT_RETURN(message != NULL, false);
+    if (queueIsEmpty(queue))
     {
         return false;
     }
@@ -172,8 +190,12 @@ bool Queue_Receive(Queue *queue, uint8_t *message)
  * @param queue_size 队列大小
  * @return true:初始化成功 false:初始化失败
  */
-bool FDQueue_Init(FDQueue *queue, uint8_t *buffer, uint16_t buffer_size, uint8_t queue_size)
+bool fdQueueInit(FDQueue *queue, uint8_t *buffer, uint16_t buffer_size, uint8_t queue_size)
 {
+    QUEUE_ASSERT_RETURN(queue != NULL, false);
+    QUEUE_ASSERT_RETURN(buffer != NULL, false);
+    QUEUE_ASSERT_RETURN(buffer_size != 0, false);
+    QUEUE_ASSERT_RETURN(queue_size != 0, false);
     queue->size_record = (uint16_t *)malloc(sizeof (uint16_t) * queue_size);
     if (queue->size_record == NULL)
     {
@@ -199,8 +221,10 @@ bool FDQueue_Init(FDQueue *queue, uint8_t *buffer, uint16_t buffer_size, uint8_t
  * @param queue_size 队列大小
  * @return 队列指针
  */
-FDQueue* FDQueue_Create(uint16_t buffer_size, uint8_t queue_size)
+FDQueue* fdQueueCreate(uint16_t buffer_size, uint8_t queue_size)
 {
+    QUEUE_ASSERT_RETURN(buffer_size != 0, NULL);
+    QUEUE_ASSERT_RETURN(queue_size != 0, NULL);
     FDQueue *queue = (FDQueue *)malloc(sizeof (FDQueue));
     if (queue == NULL)
     {
@@ -223,7 +247,7 @@ FDQueue* FDQueue_Create(uint16_t buffer_size, uint8_t queue_size)
         free(queue);
         return NULL;
     }
-    memset(queue->size_record, 0, queue_size + 1);
+    memset(queue->size_record, 0, sizeof (uint16_t) * queue_size);
     memset(queue->buffer, 0, buffer_size);
     queue->read_index = 0;
     queue->write_index = 0;
@@ -239,18 +263,43 @@ FDQueue* FDQueue_Create(uint16_t buffer_size, uint8_t queue_size)
  * @param queue 队列指针
  * @return 剩余空间大小
  */
-uint16_t FDQueue_GetFreeSpace(FDQueue *queue)
+uint16_t fdQueueGetFreeSpace(FDQueue *queue)
 {
+    QUEUE_ASSERT_RETURN(queue != NULL, 0);
     uint16_t free_space = 0;
-    if (queue->write_index >= queue->read_index)
+
+    if (queue->write_index > queue->read_index)
     {
         free_space = queue->buffer_size - queue->write_index + queue->read_index;
     }
-    else
+    else if (queue->write_index < queue->read_index)
     {
-        free_space = queue->write_index  - queue->read_index;
+        free_space = queue->read_index  - queue->write_index;
+    }
+    else if (queue->write_index == queue->read_index)
+    {
+        free_space = fdQueueIsEmpty(queue) ? queue->buffer_size : 0; // 队列消息个数为0时候，buffer为空, 否则为buffer已满
     }
     return free_space;
+}
+
+/**
+ * @brief 获取可变长度队列中待处理的消息数量
+ * @param queue 队列指针
+ * @return 待处理的消息数量
+ */
+uint16_t fdQueueMessageWatting(FDQueue *queue)
+{
+    QUEUE_ASSERT_RETURN(queue != NULL, 0);
+    uint16_t message_count = 0;
+    for (int i = 0; i < queue->queue_size; ++i)
+    {
+        if (queue->size_record[i] != 0)
+        {
+            message_count++;
+        }
+    }
+    return message_count;
 }
 
 /**
@@ -258,13 +307,21 @@ uint16_t FDQueue_GetFreeSpace(FDQueue *queue)
  * @param queue 队列指针
  * @return true: 队列为空 false: 队列非空
  */
-bool FDQueue_isEmpty(FDQueue *queue)
+bool fdQueueIsEmpty(FDQueue *queue)
 {
+    QUEUE_ASSERT_RETURN(queue != NULL, false);
     return (queue->record_read_index == queue->record_write_index) && (queue->record_read_mirror == queue->record_write_mirror);
 }
 
-bool FDQueue_isFull(FDQueue *queue)
+/**
+ * @brief 可变长度队列是否已满
+ * @note 这里针对的是队列消息个数，而不是buffer的状态
+ * @param queue 队列指针
+ * @return true: 队列已满 false: 队列未满
+ */
+bool fdQueueIsFull(FDQueue *queue)
 {
+    QUEUE_ASSERT_RETURN(queue != NULL, true);
     return (queue->record_read_index == queue->record_write_index) && (queue->record_read_mirror != queue->record_write_mirror);
 }
 
@@ -275,14 +332,17 @@ bool FDQueue_isFull(FDQueue *queue)
  * @param message_size 消息长度
  * @return true: 发送成功 false: 队列已满
  */
-bool FDQueue_Send(FDQueue *queue,const uint8_t *message, uint16_t message_size)
+bool fdQueueSend(FDQueue *queue, const uint8_t *message, uint16_t message_size)
 {
-    if (FDQueue_GetFreeSpace(queue) < message_size)
+    QUEUE_ASSERT_RETURN(queue != NULL, false);
+    QUEUE_ASSERT_RETURN(message != NULL, false);
+    QUEUE_ASSERT_RETURN(message_size != 0, false);
+    if (fdQueueGetFreeSpace(queue) < message_size)
     {
         return false;
     }
 
-    if (FDQueue_isFull(queue))
+    if (fdQueueIsFull(queue))
     {
         return false;
     }
@@ -305,22 +365,58 @@ bool FDQueue_Send(FDQueue *queue,const uint8_t *message, uint16_t message_size)
 }
 
 /**
- * @brief 向可变长度队列发送一条消息
- * @note 和 FDQueue_SendEnd 互为一对，用于分包发送同一条消息的情况
- *       此函数可调用多次，直到 FDQueue_SendEnd 成功结束发送
+ * @brief 向可变长度队列发送一条消息, 强制写入
+ * @note 此函数会强制写入，如果队列已满，会先删除队列中的消息，直到有空间为止
  * @param queue 队列指针
  * @param message 消息
  * @param message_size 消息长度
  * @return true: 发送成功 false: 队列已满
  */
-bool FDQueue_SendBegin(FDQueue *queue,const uint8_t *message, uint16_t message_size)
+bool fdQueueSendForce(FDQueue *queue, const uint8_t *message, uint16_t message_size)
 {
-    if (FDQueue_GetFreeSpace(queue) < message_size)
+    QUEUE_ASSERT_RETURN(queue != NULL, false);
+    QUEUE_ASSERT_RETURN(message != NULL, false);
+    QUEUE_ASSERT_RETURN(message_size != 0, false);
+    uint32_t free_space = fdQueueGetFreeSpace(queue);
+    bool is_full = fdQueueIsFull(queue);
+    if (free_space < message_size || is_full)
+    {
+        while (free_space < message_size || is_full)
+        {
+            uint16_t recoed_size = queue->size_record[queue->record_read_index];
+            for (uint16_t i = 0; i < recoed_size; i++)
+            {
+                queue->read_index = (queue->read_index + 1) % queue->buffer_size;
+            }
+            FDQUEUE_UPDATE_RECORD_READ_INDEX(queue);
+            free_space = fdQueueGetFreeSpace(queue);
+            is_full = fdQueueIsFull(queue);
+        }
+    }
+    return fdQueueSend(queue, message, message_size);
+}
+
+/**
+ * @brief 向可变长度队列发送一条消息
+ * @note 和 fdQueueSendEnd 互为一对，用于分包发送同一条消息的情况
+ * @note 此函数可调用多次，直到 fdQueueSendEnd 成功结束发送
+ * @note 此函数和 fdQueueSendEnd 函数无法处理队列buffer满的异常情况，需谨慎使用
+ * @param queue 队列指针
+ * @param message 消息
+ * @param message_size 消息长度
+ * @return true: 发送成功 false: 队列已满
+ */
+bool fdQueueSendBegin(FDQueue *queue, const uint8_t *message, uint16_t message_size)
+{
+    QUEUE_ASSERT_RETURN(queue != NULL, false);
+    QUEUE_ASSERT_RETURN(message != NULL, false);
+    QUEUE_ASSERT_RETURN(message_size != 0, false);
+    if (fdQueueGetFreeSpace(queue) < message_size)
     {
         return false;
     }
 
-    if (FDQueue_isFull(queue))
+    if (fdQueueIsFull(queue))
     {
         return false;
     }
@@ -343,20 +439,24 @@ bool FDQueue_SendBegin(FDQueue *queue,const uint8_t *message, uint16_t message_s
 
 /**
  * @brief 向可变长度队列发送一条消息
- * @note 和 FDQueue_SendBegin 互为一对，用于分包发送同一条消息的情况
+ * @note 和 fdQueueSendBegin 互为一对，用于分包发送同一条消息的情况
+ * @note 此函数和 fdQueueSendBegin 函数无法处理队列buffer满的异常情况，需谨慎使用
  * @param queue 队列指针
  * @param message 消息
  * @param message_size 消息长度
  * @return true: 发送成功 false: 队列已满
  */
-bool FDQueue_SendEnd(FDQueue *queue,const uint8_t *message, uint16_t message_size)
+bool fdQueueSendEnd(FDQueue *queue, const uint8_t *message, uint16_t message_size)
 {
-    if (FDQueue_GetFreeSpace(queue) < message_size)
+    QUEUE_ASSERT_RETURN(queue != NULL, false);
+    QUEUE_ASSERT_RETURN(message != NULL, false);
+    QUEUE_ASSERT_RETURN(message_size != 0, false);
+    if (fdQueueGetFreeSpace(queue) < message_size)
     {
         return false;
     }
 
-    if (FDQueue_isFull(queue))
+    if (fdQueueIsFull(queue))
     {
         return false;
     }
@@ -379,20 +479,8 @@ bool FDQueue_SendEnd(FDQueue *queue,const uint8_t *message, uint16_t message_siz
         queue->write_index = message_size - (queue->buffer_size - queue->write_index);
     }
 
-
-    uint16_t whole_message_size = 0;//整条消息的长度
-    if (begin_pos < queue->write_index)
-    {
-        whole_message_size = queue->write_index - begin_pos;
-    }
-    else
-    {
-        whole_message_size = queue->buffer_size - begin_pos + queue->write_index;
-    }
-
     FDQUEUE_UPDATE_RECORD_WRITE_INDEX_END(queue, message_size);
     return true;
-
 }
 
 /**
@@ -402,9 +490,12 @@ bool FDQueue_SendEnd(FDQueue *queue,const uint8_t *message, uint16_t message_siz
  * @param message_size_max 接收缓存大小
  * @return 0: 队列为空 其他值: 接收到的数据大小
  */
-uint16_t FDQueue_Receive(FDQueue *queue, uint8_t *message, uint16_t message_size_max)
+uint16_t fdQueueReceive(FDQueue *queue, uint8_t *message, uint16_t message_size_max)
 {
-    if (FDQueue_isEmpty(queue))
+    QUEUE_ASSERT_RETURN(queue != NULL, 0);
+    QUEUE_ASSERT_RETURN(message != NULL, 0);
+    QUEUE_ASSERT_RETURN(message_size_max != 0, 0);
+    if (fdQueueIsEmpty(queue))
     {
         return 0;
     }

@@ -177,7 +177,7 @@ uint32_t ringBufferRead(RingBuffer_t* ringBuffer, uint8_t *data, uint32_t data_s
         {
             data[i] = ringBuffer->buffer[ringBuffer->read_index];
             ringBuffer->read_index = (ringBuffer->read_index + 1) % ringBuffer->size;
-            if (ringBuffer->read_index == ringBuffer->write_index)
+            if (ringBuffer->read_index == 0)
             {
                 ringBuffer->read_index_mirror ^= 1;
             }

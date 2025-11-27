@@ -18,7 +18,6 @@
 
 #define BufferASSERT(x)  do{ if(!(x)){printf("assert faild %s:%d\n", #x, __LINE__); return;}}while(0)
 #define BufferASSERT_RETURN(x, ret)  do{ if(!(x)){printf("assert faild %s:%d\n", #x, __LINE__); return ret;} }while(0)
-
 #define Buffer_Malloc(size) malloc(size)
 
 
@@ -32,6 +31,8 @@ typedef struct __RingBuffer_t
     uint32_t read_index_mirror : 1;
     uint8_t is_message_buffer;
 }RingBuffer_t;
+
+/* ====================== 普通环形缓冲区实现 ====================== */
 
 void ringBufferInit(RingBuffer_t* ringBuffer, uint8_t* buffer, uint32_t bufferSize)
 {
@@ -95,7 +96,7 @@ uint32_t ringBufferGetFreeSize(RingBuffer_t* ringBuffer)
     }
 }
 
-bool ringBufferWrite(RingBuffer_t* ringBuffer, uint8_t *data, uint32_t data_size)
+bool ringBufferWrite(RingBuffer_t* ringBuffer, const uint8_t *data, uint32_t data_size)
 {
     BufferASSERT_RETURN(ringBuffer != NULL, false);
     BufferASSERT_RETURN(data != NULL, false);
@@ -126,11 +127,12 @@ bool ringBufferWrite(RingBuffer_t* ringBuffer, uint8_t *data, uint32_t data_size
         memcpy(&ringBuffer->buffer[ringBuffer->write_index], data, first_size);
         memcpy(&ringBuffer->buffer[0], &data[first_size], data_size - first_size);
         ringBuffer->write_index = data_size - first_size;
+        ringBuffer->write_index_mirror ^= 1;
     }
     return true;
 }
 
-void ringBufferWriteForce(RingBuffer_t* ringBuffer, uint8_t *data, uint32_t data_size)
+void ringBufferWriteForce(RingBuffer_t* ringBuffer, const uint8_t *data, uint32_t data_size)
 {
     BufferASSERT(ringBuffer != NULL);
     BufferASSERT(data != NULL);
@@ -149,7 +151,7 @@ void ringBufferWriteForce(RingBuffer_t* ringBuffer, uint8_t *data, uint32_t data
             ringBuffer->buffer[ringBuffer->write_index] = data[i];
             ringBuffer->write_index = (ringBuffer->write_index + 1) % ringBuffer->size;
         }
-        if (ringBuffer->read_index == ringBuffer->write_index)
+        if (ringBuffer->read_index == 0)
         {
             ringBuffer->write_index_mirror ^= 1;
         }
@@ -186,6 +188,8 @@ uint32_t ringBufferRead(RingBuffer_t* ringBuffer, uint8_t *data, uint32_t data_s
     return data_size;
 }
 
+/* ====================== 消息缓冲区实现 ====================== */
+
 void messageBufferInit(RingBuffer_t *messge_buffer, uint8_t *buffer, uint32_t buffer_size)
 {
     ringBufferInit(messge_buffer, buffer, buffer_size);
@@ -211,7 +215,7 @@ uint32_t messageBufferGetFreeSize(RingBuffer_t* message_buffer)
     return ringBufferGetFreeSize(message_buffer);
 }
 
-bool messageBufferWrite(RingBuffer_t* message_buffer, uint8_t *data, uint32_t data_size)
+bool messageBufferWrite(RingBuffer_t* message_buffer, const uint8_t *data, uint32_t data_size)
 {
     BufferASSERT_RETURN(message_buffer != NULL, false);
     BufferASSERT_RETURN(data != NULL, false);
@@ -229,6 +233,33 @@ bool messageBufferWrite(RingBuffer_t* message_buffer, uint8_t *data, uint32_t da
     ringBufferWrite(message_buffer, (uint8_t *)&data_size, sizeof(uint32_t));
     ringBufferWrite(message_buffer, data, data_size);
     return true;
+}
+
+void messageBufferWriteForce(RingBuffer_t* message_buffer, const uint8_t *data, uint32_t data_size)
+{
+    BufferASSERT(message_buffer != NULL);
+    BufferASSERT(data != NULL);
+
+    if (ringBufferIsFull(message_buffer) || ringBufferGetFreeSize(message_buffer) < data_size + sizeof(uint32_t))
+    {
+        uint32_t message_size = 0;
+        uint8_t read_size = ringBufferRead(message_buffer, (uint8_t *)&message_size, sizeof(uint32_t));
+        if (read_size != sizeof(uint32_t) || message_size == 0)
+        {
+            return;
+        }
+        uint32_t last_read_index = message_buffer->read_index;
+        message_buffer->read_index = (message_buffer->read_index + message_size) % message_buffer->size;// 更新读指针，模拟读取
+        if (message_buffer->read_index < last_read_index)
+        {
+            message_buffer->read_index_mirror ^= 1;
+        }
+        messageBufferWrite(message_buffer, data, data_size);
+    }
+    else
+    {
+        messageBufferWrite(message_buffer, data, data_size);
+    }
 }
 
 uint32_t messageBufferRead(RingBuffer_t* message_buffer, uint8_t *data, uint32_t data_size)
